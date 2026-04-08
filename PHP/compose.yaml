@@ -1,0 +1,59 @@
+services:
+
+  # ── Base de datos MySQL ────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.4
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: gestor_intranet       # <-- nombre real de la BD
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ${PROJECT_PATH}/DB/gestor_intranet_rodrigo.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - app_network                         # <-- misma red que PHP/Nginx
+
+  # ── PHP-FPM ───────────────────────────────────────────────────────────────
+  php:
+    build: .
+    container_name: php_app
+    restart: unless-stopped
+    environment:
+      PHP_MEMORY_LIMIT: 256M
+    volumes:
+      - ${PROJECT_PATH}:/var/www/html
+    networks:
+      - app_network
+    depends_on:
+      - mysql
+
+  # ── Nginx ─────────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_server
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ${PROJECT_PATH}:/var/www/html
+      - ./nginx.conf:/etc/nginx/conf.d
+    networks:
+      - app_network
+    depends_on:
+      - php
+
+# ── Red compartida ────────────────────────────────────────────────────────────
+networks:
+  app_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ── Volumen persistente de MySQL ─────────────────────────────────────────────
+volumes:
+  db_data:
